@@ -1,7 +1,6 @@
-// ERS-backend/routes/registerEventRoutes.js
 import express from "express";
-import { protect } from "../middleware/authMiddleware.js";
 import { registerEvent } from "../controllers/registerEventController.js";
+import { protect } from "../middleware/authMiddleware.js";
 const router = express.Router();
-router.post("/", protect, registerEvent);
+router.post("/", protect, registerEvent); // require token
 export default router;

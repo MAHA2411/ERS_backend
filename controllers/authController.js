@@ -1,41 +1,31 @@
-// controllers/authController.js
-import User from "../models/userModel.js";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
-const genToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+import User from "../models/User.js";
 
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: "All fields required" });
+    if (!name || !email || !password) return res.status(400).json({ message: "Missing fields" });
 
     const exists = await User.findOne({ email });
-    if (exists) return res.status(400).json({ message: "Email already in use" });
+    if (exists) return res.status(400).json({ message: "User exists" });
 
-    const user = await User.create({ name, email, password });
-    res.status(201).json({ message: "Registered successfully" });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, password: hashed });
+    res.status(201).json({ message: "Registered" });
+  } catch (err) { res.status(500).json({ message: err.message }); }
 };
 
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "Email and password required" });
+    const u = await User.findOne({ email });
+    if (!u) return res.status(404).json({ message: "User not found" });
 
-    const user = await User.findOne({ email });
-    if (!user || !(await user.matchPassword(password))) return res.status(401).json({ message: "Invalid credentials" });
+    const ok = await bcrypt.compare(password, u.password);
+    if (!ok) return res.status(400).json({ message: "Invalid credentials" });
 
-    const token = genToken(user._id);
-    res.cookie("token", token, {
-      httpOnly: true,
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    res.json({ message: "Login successful", user: { id: user._id, name: user.name, email: user.email } });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+    const token = jwt.sign({ id: u._id, role: u.role }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    res.json({ token, user: { id: u._id, name: u.name, email: u.email } });
+  } catch (err) { res.status(500).json({ message: err.message }); }
 };
